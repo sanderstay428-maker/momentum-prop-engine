@@ -1,15 +1,20 @@
-"""Momentum Prop Engine — FastAPI backend with AI prediction layer + WebSocket live feed."""
+"""
+Momentum Prop Engine — FastAPI backend with AI prediction layer + scalable WebSocket hub.
+"""
 
 from __future__ import annotations
 
 import asyncio
+import logging
 import random
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from live_hub import LiveHub
 from mpe_ai.predictions import (
     GameState,
     PlayerState,
@@ -20,16 +25,13 @@ from mpe_ai.predictions import (
     usage_spike,
 )
 
-app = FastAPI(title="Momentum Prop Engine API", version="0.1.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("mpe.api")
 
-LIVE = {
+hub = LiveHub(channel="mpe:live")
+_producer_task: asyncio.Task | None = None
+
+LIVE: dict[str, Any] = {
     "quarter": 3,
     "seconds": 6 * 60 + 42,
     "home": 92,
@@ -72,7 +74,7 @@ def build_game_state() -> GameState:
 
 
 def build_players() -> list[PlayerState]:
-    out = []
+    out: list[PlayerState] = []
     for pid, p in LIVE["players"].items():
         out.append(
             PlayerState(
@@ -93,7 +95,7 @@ def compute_snapshot() -> dict[str, Any]:
     gs = build_game_state()
     players = build_players()
     blow = blowout_hazard(gs)
-    props = []
+    props: list[dict[str, Any]] = []
 
     e = LIVE["players"]["embiid"]
     foul = foul_impact_minutes(e["fouls"], e["minutes"], gs.quarter, gs.seconds_remaining_quarter)
@@ -128,11 +130,65 @@ def compute_snapshot() -> dict[str, Any]:
         "props": props,
         "swaps": swaps,
         "alerts": [
-            f"Embiid {e['fouls']} fouls -> UNDER bias {foul['under_bias']:.2f}",
+            f"Embiid {e['fouls']} fouls → UNDER bias {foul['under_bias']:.2f}",
             f"Blowout hazard {blow['blowout_probability']:.0%} ({blow['risk_band']})",
             f"Maxey usage spike {us['spike_score']:.2f}",
         ],
     }
+
+
+def _tick_simulation() -> None:
+    if random.random() < 0.4:
+        if random.random() < 0.55:
+            LIVE["home"] += random.choice([2, 3])
+            LIVE["poss"] = "DET"
+        else:
+            LIVE["away"] += random.choice([2, 3])
+            LIVE["poss"] = "PHI"
+    if LIVE["seconds"] > 0:
+        LIVE["seconds"] -= 5
+    elif LIVE["quarter"] < 4:
+        LIVE["quarter"] += 1
+        LIVE["seconds"] = 12 * 60
+
+
+async def snapshot_producer(interval: float = 4.0) -> None:
+    while True:
+        try:
+            _tick_simulation()
+            snap = compute_snapshot()
+            await hub.publish({"type": "snapshot", "data": snap})
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("snapshot_producer error")
+        await asyncio.sleep(interval)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _producer_task
+    await hub.start()
+    _producer_task = asyncio.create_task(snapshot_producer(), name="mpe-snapshot-producer")
+    logger.info("MPE API up · LiveHub redis=%s channel=%s", hub.redis_enabled, hub.channel)
+    yield
+    if _producer_task and not _producer_task.done():
+        _producer_task.cancel()
+        try:
+            await _producer_task
+        except asyncio.CancelledError:
+            pass
+    await hub.stop()
+
+
+app = FastAPI(title="Momentum Prop Engine API", version="0.2.0", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class PredictRequest(BaseModel):
@@ -150,8 +206,16 @@ class PredictRequest(BaseModel):
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "service": "mpe-api"}
+def health() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "service": "mpe-api",
+        "ws": {
+            "local_connections": hub.connection_count,
+            "redis": hub.redis_enabled,
+            "channel": hub.channel,
+        },
+    }
 
 
 @app.get("/game/state")
@@ -186,23 +250,19 @@ def ai_predict(body: PredictRequest) -> dict[str, Any]:
 
 @app.websocket("/ws/live")
 async def ws_live(ws: WebSocket) -> None:
-    await ws.accept()
+    await hub.connect(ws)
     try:
+        await ws.send_json({"type": "snapshot", "data": compute_snapshot()})
         while True:
-            if random.random() < 0.4:
-                if random.random() < 0.55:
-                    LIVE["home"] += random.choice([2, 3])
-                    LIVE["poss"] = "DET"
-                else:
-                    LIVE["away"] += random.choice([2, 3])
-                    LIVE["poss"] = "PHI"
-            if LIVE["seconds"] > 0:
-                LIVE["seconds"] -= 5
-            snap = compute_snapshot()
-            await ws.send_json({"type": "snapshot", "data": snap})
-            await asyncio.sleep(4)
+            msg = await ws.receive_text()
+            if msg in ("ping", '{"type":"ping"}'):
+                await ws.send_json({"type": "pong"})
     except WebSocketDisconnect:
-        return
+        pass
+    except Exception:
+        logger.exception("ws_live error")
+    finally:
+        hub.disconnect(ws)
 
 
 if __name__ == "__main__":
