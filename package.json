@@ -1,0 +1,9 @@
+{
+  "name": "momentum-prop-engine",
+  "version": "0.2.0",
+  "private": true,
+  "description": "MPE live prop intelligence dashboard",
+  "scripts": {
+    "start": "npx --yes serve . -p 3000"
+  }
+}
