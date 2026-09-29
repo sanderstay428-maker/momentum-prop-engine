@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Momentum Prop Engine — Live</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={theme:{extend:{colors:{void:"#07090d",panel:"#0d1118",line:"#1c2430",neon:"#22d3a6",danger:"#ff4d6d",warn:"#f5c542"}}}}</script>
+  <style>
+    body{background:#07090d;color:#e8edf4}
+    .pulse{animation:p 1.6s ease-in-out infinite}
+    @keyframes p{50%{opacity:.4}}
+    .meter{background:linear-gradient(90deg,#ff4d6d,#f5c542,#22d3a6)}
+  </style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+<header class="border-b border-line bg-void/95 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+  <div class="flex items-center gap-3">
+    <div class="h-9 w-9 rounded-lg bg-neon/15 text-neon font-bold flex items-center justify-center">M</div>
+    <div>
+      <div class="text-sm font-semibold tracking-wide">MOMENTUM PROP ENGINE</div>
+      <div class="text-[11px] text-slate-400 font-mono">LIVE DEMO · AI LAYER WIRED · NBA</div>
+    </div>
+  </div>
+  <div class="flex items-center gap-2 text-xs text-neon"><span class="pulse h-2 w-2 rounded-full bg-neon inline-block"></span> LIVE SIM</div>
+</header>
+<main class="mx-auto max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-4 p-4">
+  <aside class="lg:col-span-3 rounded-xl border border-line bg-panel p-3">
+    <div class="text-xs font-semibold text-slate-400 mb-2">ALERT FEED</div>
+    <div id="feed" class="space-y-2 text-[11px] max-h-96 overflow-y-auto"></div>
+  </aside>
+  <section class="lg:col-span-6 space-y-4">
+    <div class="rounded-xl border border-line bg-panel p-4">
+      <div class="flex justify-between gap-4 flex-wrap">
+        <div>
+          <div class="text-[11px] uppercase text-slate-400 tracking-widest">Command Center</div>
+          <h1 class="text-xl font-bold mt-1">76ers vs Pistons</h1>
+          <div id="clock" class="font-mono text-sm text-slate-300 mt-1">Q3 · 6:42 · PHI</div>
+        </div>
+        <div class="text-right">
+          <div id="score" class="font-mono text-3xl font-bold">92 – 81</div>
+          <div id="blow" class="text-xs text-warn">Blowout 38%</div>
+        </div>
+      </div>
+      <div class="mt-4 relative h-2 rounded-full bg-line overflow-hidden">
+        <div class="meter h-full w-full opacity-30"></div>
+        <div id="needle" class="absolute top-[-3px] h-3.5 w-1 bg-white rounded" style="left:62%"></div>
+      </div>
+      <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+        <div class="rounded-lg border border-danger/30 bg-danger/10 px-2 py-1.5">Embiid 4 PF</div>
+        <div class="rounded-lg border border-warn/30 bg-warn/10 px-2 py-1.5">Pace +7</div>
+      </div>
+    </div>
+    <div class="rounded-xl border border-line bg-panel p-4">
+      <h2 class="text-sm font-semibold mb-3">PROP ENGINE · AI EDGE</h2>
+      <div id="props" class="grid md:grid-cols-2 gap-3"></div>
+    </div>
+    <div class="rounded-xl border border-line bg-panel p-4">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="text-sm font-semibold">BET BUILDER</h2>
+        <button id="opt" class="bg-neon text-void text-xs font-semibold px-3 py-1.5 rounded-md">Auto Optimize</button>
+      </div>
+      <div class="flex gap-2 text-xs mb-3">
+        <button id="m2" class="bg-neon/20 text-neon font-semibold px-3 py-1.5 rounded-md">2-PICK SAFE</button>
+        <button id="m3" class="border border-line text-slate-400 px-3 py-1.5 rounded-md">3-PICK BOOST</button>
+      </div>
+      <div id="builder" class="space-y-2 text-sm"></div>
+      <div class="mt-2 text-xs">Hit prob <span id="hit" class="text-neon font-mono">64%</span></div>
+    </div>
+  </section>
+  <aside class="lg:col-span-3 space-y-4">
+    <div class="rounded-xl border border-neon/30 bg-panel p-4">
+      <h2 class="text-sm font-semibold">SWAP ENGINE</h2>
+      <p class="text-[11px] text-slate-400 mb-3">IF THIS → THEN THAT</p>
+      <div id="swaps" class="space-y-2 text-sm"></div>
+    </div>
+  </aside>
+</main>
+<script>
+const S={q:3,sec:402,h:92,a:81,mom:62,blow:38,fouls:4};
+const props=[{p:"Joel Embiid",pr:"Points",l:"28.5",e:63,t:"↓",rec:"UNDER",tag:"FORMING EDGE",c:"neon"},{p:"Tyrese Maxey",pr:"Points",l:"24.5",e:58,t:"↑",rec:"OVER",tag:"VOLATILE",c:"warn"},{p:"Cade Cunningham",pr:"PRA",l:"41.5",e:54,t:"↓",rec:"UNDER",tag:"BLOWOUT SENSITIVE",c:"danger"},{p:"Tobias Harris",pr:"Rebounds",l:"6.5",e:61,t:"↑",rec:"OVER",tag:"FORMING EDGE",c:"neon"}];
+const alerts=["Embiid 4 fouls → UNDER spike","Blowout watch elevated","Maxey usage spike","Pace +7 last 4 min","DET cold from three"];
+function pad(n){return String(n).padStart(2,"0")}
+function clock(){return `Q${S.q} · ${Math.floor(S.sec/60)}:${pad(S.sec%60)} · PHI`}
+function push(t){const f=document.getElementById("feed");const d=document.createElement("div");d.className="rounded-lg border border-line bg-void/60 p-2";d.innerHTML=`<div class="font-mono text-[10px] text-neon">${new Date().toLocaleTimeString()}</div>${t}`;f.prepend(d);while(f.children.length>10)f.removeChild(f.lastChild)}
+function renderProps(){document.getElementById("props").innerHTML=props.map(x=>`<article class="rounded-xl border border-${x.c}/40 bg-${x.c}/5 p-3"><div class="flex justify-between"><div><div class="font-semibold">${x.p}</div><div class="text-xs text-slate-400">${x.pr} · ${x.l}</div></div><div class="text-right font-mono text-lg font-bold text-${x.c}">${Math.round(x.e)}%</div></div><div class="mt-2 flex justify-between text-[11px]"><span class="bg-void px-2 py-0.5 rounded">${x.tag}</span><span class="font-semibold">${x.rec} ${x.t}</span></div></article>`).join("")}
+function renderSwaps(){const lead=S.h-S.a;const rules=[{i:"Lead > 15",t:"Embiid UNDER 28.5",a:lead>15},{i:"Close game Q4",t:"Maxey OVER 24.5",a:Math.abs(lead)<=6&&S.q>=4},{i:"Embiid 5th foul",t:"Kill Embiid props",a:S.fouls>=5},{i:"Bench spike",t:"DET bench OVER",a:lead>=12}];document.getElementById("swaps").innerHTML=rules.map(r=>`<div class="rounded-lg border ${r.a?"border-neon/50":"border-line"} p-2"><div class="text-[10px] text-slate-500 uppercase">If ${r.a?'· ARMED':''}</div><div>${r.i}</div><div class="text-neon text-[11px] mt-1">Then · ${r.t}</div></div>`).join("")}
+let mode=2;
+function builder(){const picks=mode===2?["Embiid Pts UNDER 28.5","Harris REB OVER 6.5"]:["Embiid Pts UNDER 28.5","Harris REB OVER 6.5","Maxey Pts OVER 24.5"];document.getElementById("builder").innerHTML=picks.map((p,i)=>`<div class="flex justify-between border border-line rounded-lg px-3 py-2 bg-void/50"><span>${i+1}. ${p}</span><span class="font-mono text-xs text-neon">${mode===2?"61-66%":"52-58%"}</span></div>`).join("");document.getElementById("hit").textContent=mode===2?"64%":"51%"}
+function hud(){document.getElementById("clock").textContent=clock();document.getElementById("score").textContent=`${S.h} – ${S.a}`;document.getElementById("blow").textContent=`Blowout ${Math.round(S.blow)}%`;document.getElementById("needle").style.left=S.mom+"%";renderSwaps()}
+alerts.forEach(push);renderProps();builder();hud();
+document.getElementById("m2").onclick=()=>{mode=2;builder()};
+document.getElementById("m3").onclick=()=>{mode=3;builder()};
+document.getElementById("opt").onclick=()=>{document.getElementById("hit").textContent=mode===2?"67%":"55%";push("Auto Optimize")};
+setInterval(()=>{if(S.sec>0)S.sec--;else if(S.q<4){S.q++;S.sec=720;push("Quarter → Q"+S.q)}hud()},1000);
+setInterval(()=>{if(Math.random()<0.4){if(Math.random()<0.55)S.h+=2;else S.a+=2;const lead=S.h-S.a;S.blow=Math.max(8,Math.min(78,20+lead*2.2));S.mom=Math.max(12,Math.min(88,50+lead*1.8));hud()}props.forEach(x=>{x.e=Math.max(48,Math.min(72,x.e+(Math.random()-0.48)*1.2)});renderProps();if(Math.random()<0.35)push(alerts[Math.floor(Math.random()*alerts.length)])},4500);
+</script>
+</body>
+</html>
