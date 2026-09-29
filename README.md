@@ -1,80 +1,64 @@
 # Momentum Prop Engine (MPE)
 
-Live prop intelligence dashboard — decision advantage, not raw lines.
+Live prop intelligence dashboard — decision advantage under changing game state.
 
-## Live demo (usable today)
+## Live product
 
-Open the static command center (simulated live state + Swap Engine + Bet Builder):
+**Production:** https://momentum-prop-engine-sniper4.vercel.app
 
-- **Local:** open `index.html` in a browser  
-- **GitHub Pages / deploy:** root `index.html`
+Public, no login. Client-side live simulation with Prop Engine, Swap Engine, Bet Builder, and Alert Feed.
 
-Production path: Next.js UI + FastAPI WebSockets + AI prediction layer below.
+## Repository layout
 
-## Product thesis
+| Path | Purpose |
+|------|--------|
+| `index.html` | Live command-center UI |
+| `backend/main.py` | FastAPI API + WebSocket gateway |
+| `backend/live_hub.py` | Redis-optional multi-worker fan-out |
+| `backend/mpe_ai/` | Foul impact, blowout hazard, usage spike, prop edge |
+| `vercel.json` | Static deploy config |
+| `DEPLOY.md` | Production and Git→Vercel notes |
 
-People do not pay for information. They pay for **decision advantage** under changing game state.
+## AI prediction layer
 
-Core surfaces:
-1. Live Game Command Center  
-2. Prop Engine (edge %, tags, confidence)  
-3. Swap Engine (`IF THIS → THEN THAT`)  
-4. Bet Builder (2-pick safe / 3-pick boost)  
-5. Alert Feed  
-6. Cross-sport toggle  
-
-## AI prediction layer (v0)
-
-Three first models drive every panel:
-
-| Model | Signal | UI effect |
-|-------|--------|-----------|
-| Foul-impact minutes | Personal fouls → remaining minutes distribution | Embiid UNDER edge, Swap “5th foul” |
-| Blowout hazard | Lead + time + pace → P(blowout) | Blowout meter, BLOWOUT SENSITIVE tags |
-| Usage spike | On-ball rate residual after rotation/foul | Maxey OVER, bench OVER swaps |
-
-Location: `backend/mpe_ai/`
-
-## Stack
-
-| Layer | Choice |
+| Model | Drives |
 |-------|--------|
-| Demo UI | Single-file HTML + Tailwind CDN (instant) |
-| Product UI | Next.js 14 + Tailwind |
-| API / realtime | FastAPI + WebSockets |
-| Intelligence | Python models → edge, swap rules, combo hit % |
+| Foul-impact minutes | Embiid UNDER bias, 5th-foul swap |
+| Blowout hazard | Blowout meter, BLOWOUT SENSITIVE tags |
+| Usage spike | Maxey OVER, bench value |
+| Prop edge | Edge %, OVER/UNDER, confidence color |
 
-## Quick start — API + AI
+## Run the API locally
 
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-Endpoints:
-- `GET /health`
-- `GET /game/state` — live snapshot
-- `GET /props` — prop cards with edge
-- `POST /ai/predict` — foul / blowout / usage
-- `WS /ws/live` — push updates
-
-## Quick start — Next.js (next phase)
+Optional multi-worker:
 
 ```bash
-npx create-next-app@latest web --typescript --tailwind --eslint --app
-# wire web/ to http://localhost:8000 and /ws/live
+export REDIS_URL=redis://127.0.0.1:6379
+uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
-## Monetization gates
+| Endpoint | Role |
+|----------|------|
+| `GET /health` | Status + LiveHub connection count |
+| `GET /game/state` | Full AI snapshot |
+| `GET /props` | Prop cards |
+| `POST /ai/predict` | Foul / blowout / usage / edge |
+| `WS /ws/live` | LiveHub push feed |
 
-| Tier | Access |
-|------|--------|
-| Free | Basic props, delayed alerts |
-| Premium | Live Swap Engine, edge %, Auto Optimize |
+## Monetization thesis
+
+Free: basic props, delayed alerts.  
+Premium: live Swap Engine, edge %, Auto Optimize.
+
+> People do not pay for information. They pay for decision advantage.
 
 ## Disclaimer
 
-Demo data is simulated. Connect licensed sports / odds APIs for production. This is software infrastructure, not gambling advice.
+Demo data is simulated. Connect licensed sports/odds APIs for production. Software infrastructure only — not gambling advice.
